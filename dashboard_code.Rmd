@@ -1,0 +1,685 @@
+---
+title: "Women in German Local Politics"
+output:
+  flexdashboard::flex_dashboard:
+  runtime: shiny
+---
+
+```{r setup, include=FALSE}
+# required packages
+p_needed <-
+  c(
+    "viridis",
+    "knitr",
+    "ggplot2",
+    "dplyr",
+    "tidyr",
+    "haven",
+    "readxl",
+    "viridis",
+    "sf",
+    "stringr",
+    "leaflet",
+    "rjson",
+    "jsonlite",
+    "RCurl",
+    "leaflet.extras",
+    "RColorBrewer",
+    "htmltools",
+    "htmlwidgets",
+    "shiny",
+    "DT",
+    "flexdashboard",
+    "plotly"
+  )
+
+# installed packages
+packages <- rownames(installed.packages())
+
+# missing packages
+p_to_install <- p_needed[!(p_needed %in% packages)]
+
+# install missing packages
+if (length(p_to_install) > 0) {
+  install.packages(p_to_install, repos = "http://cran.rstudio.com")
+}
+
+# load packages
+sapply(p_needed, require, character.only = TRUE)
+
+# #for shiny.io
+# library(viridis)
+# library(knitr)
+# library(ggplot2)
+# library(dplyr)
+# library(tidyr)
+# library(haven)
+# library(readxl)
+# library(viridis)
+# library(sf)
+# library(stringr)
+# library(leaflet)
+# library(rjson)
+# library(jsonlite)
+# library(RCurl)
+# library(leaflet.extras)
+# library(RColorBrewer)
+# library(htmltools)
+# library(htmlwidgets)
+# library(shiny)
+# library(DT)
+# library(flexdashboard)
+# library(plotly)
+
+#working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+#load necessary data files and manipulate them
+
+load("kommunalwahlen_2000_2022.RData") #municipal election data
+
+eige_data <- read.csv("eige_data.csv") #european data
+eige_data <- pivot_wider(eige_data, names_from = POSITION, values_from = Mayor)
+names(eige_data) <- c("Year", "Country", "Share of Female Mayors", "Share of Female Councillors")
+
+#spatial data
+my_spdf <- st_read(
+  dsn = "tempdir",
+  layer = "torn"
+)
+
+#manipulate data for data table
+alle_wahlen_dt <- alle_wahlen %>%
+  dplyr::mutate(
+    Bundesland = bundesland,
+    `Election Date` = datum_kommunalwahl,
+    Municipality = gemeinde_name,
+    `Total Council Seats` = sitze_gesamt,
+    `Female Councillors` = sitze_frauen,
+    `Share of Female Councillors` = sitze_frauen/sitze_gesamt*100,
+    `CDU-CSU Councillors` = sitze_gesamt_union,
+    `Share of CDU-CSU Councillors` = sitze_gesamt_union/sitze_gesamt*100,
+    `SPD Councillors` = sitze_gesamt_spd,
+    `Share of SPD Councillors` = sitze_gesamt_spd/sitze_gesamt*100,
+    `Green Councillors` = sitze_gesamt_gruene,
+    `Share of Green Councillors` = sitze_gesamt_gruene/sitze_gesamt*100,
+    `FDP Councillors` = sitze_gesamt_fdp,
+    `Share of FDP Councillors` = sitze_gesamt_fdp/sitze_gesamt*100,
+    `Left Councillors` = sitze_gesamt_linke,
+    `Share of Left Councillors` = sitze_gesamt_linke/sitze_gesamt*100,
+    `AfD Councillors` = sitze_gesamt_afd,
+    `Share of AfD Councillors` = sitze_gesamt_afd/sitze_gesamt*100,
+    `Female CDU-CSU Councillors` = sitze_frauen_union,
+    `Share of Female CDU-CSU Councillors` = sitze_frauen_union/sitze_gesamt_union*100,
+    `Female SPD Councillors` = sitze_frauen_spd,
+    `Share of Female SPD Councillors` = sitze_frauen_spd/sitze_gesamt_spd*100,
+    `Female Green Councillors` = sitze_frauen_gruene,
+    `Share of Female Green Councillors` = sitze_frauen_gruene/sitze_gesamt_gruene*100,
+    `Female FDP Councillors` = sitze_frauen_fdp,
+    `Share of Female FDP Councillors` = sitze_frauen_fdp/sitze_gesamt_fdp*100,
+    `Female Left Councillors` = sitze_frauen_linke,
+    `Share of Female Left Councillors` = sitze_frauen_linke/sitze_gesamt_linke*100,
+    `Female AfD Councillors` = sitze_frauen_afd,
+    `Share of Female AfD Councillors` = sitze_frauen_afd/sitze_gesamt_afd*100,
+    `Female Mayor` = as.factor(ifelse(bürgermeisterin == "1", "yes", ifelse(bürgermeisterin == "0","no", NA))),
+    `Party of Mayor` = partei_bürgermeister,
+    `Date of Mayoral Election` = datum_bürgermeisterwahl,
+    `Total Number of Candidates` = bewerber_gesamt,
+    `Female Number of Candidates` = bewerber_frauen,
+    `Share of Female Candidates` = bewerber_frauen/bewerber_gesamt*100
+  ) %>%
+  dplyr::select(Bundesland,
+    `Election Date`,
+    Municipality,
+    `Total Council Seats`,
+    `Female Councillors`,
+    `Share of Female Councillors`,
+    `CDU-CSU Councillors`,
+    `Share of CDU-CSU Councillors`,
+    `SPD Councillors`,
+    `Share of SPD Councillors`,
+    `Green Councillors`,
+    `Share of Green Councillors`,
+    `FDP Councillors`,
+    `Share of FDP Councillors`,
+    `Left Councillors`,
+    `Share of Left Councillors`,
+    `AfD Councillors`,
+    `Share of AfD Councillors`,
+    `Female CDU-CSU Councillors`,
+    `Share of Female CDU-CSU Councillors`,
+    `Female SPD Councillors`,
+    `Share of Female SPD Councillors`,
+    `Female Green Councillors`,
+    `Share of Female Green Councillors`,
+    `Female FDP Councillors`,
+    `Share of Female FDP Councillors`,
+    `Female Left Councillors`,
+    `Share of Female Left Councillors`,
+    `Female AfD Councillors`,
+    `Share of Female AfD Councillors`,
+    `Female Mayor`,
+    `Party of Mayor`,
+    `Date of Mayoral Election`,
+    `Total Number of Candidates`,
+    `Female Number of Candidates`,
+    `Share of Female Candidates`)
+
+#manipulate data for correlation plots
+alle_wahlen_corr <- alle_wahlen %>%
+  dplyr::mutate(
+    `Election Date` = datum_kommunalwahl,
+    `Total Seats` = sitze_gesamt,
+    `Share of Female Councillors` = sitze_frauen / sitze_gesamt * 100,
+    `Share of Female Candidates` = bewerber_frauen / bewerber_gesamt *
+      100,
+    `Total Candidates` = bewerber_gesamt,
+    `Seat Share CDU` = sitze_gesamt_union / sitze_gesamt * 100,
+    `Seat Share SPD` = sitze_gesamt_spd / sitze_gesamt * 100,
+    `Seat Share Green Party` = sitze_gesamt_gruene / sitze_gesamt *
+      100,
+    `Seat Share FDP` = sitze_gesamt_fdp / sitze_gesamt * 100,
+    `Seat Share Left Party` = sitze_gesamt_linke / sitze_gesamt * 100,
+    `Seat Share AfD` = sitze_gesamt_afd / sitze_gesamt * 100,
+    `Female Mayor` = as.factor(ifelse(bürgermeisterin == "1", "yes", ifelse(bürgermeisterin == "0", "no", NA))),
+    `Female Minister` = as.factor(ifelse(ministerpräsidentin == "1", "yes", ifelse(ministerpräsidentin == "0", "no", NA))),
+    Bundesland = as.factor(bundesland)
+  ) %>%
+  dplyr::select(`Election Date`, `Total Seats`, `Share of Female Councillors`, `Share of Female Candidates`, `Total Candidates`, `Seat Share CDU`, `Seat Share SPD`, `Seat Share Green Party`, `Seat Share FDP`, `Seat Share Left Party`, `Seat Share AfD`, `Female Mayor`, `Female Minister`, Bundesland)
+```
+
+
+
+
+Councillors in Municipal Parliaments
+=======================================================================
+
+
+Column {data-width=150}
+-----------------------------------------------------------------------
+
+### Number of Municipal Councils in Germany
+
+```{r two, cache=TRUE}
+num_councils <- 11087
+flexdashboard::valueBox(prettyNum(num_councils, big.mark = ","),
+         caption = "Municipal Councils in Germany")
+```
+
+### Number of Female Municipal Councillors in Germany
+
+```{r three, cache=TRUE}
+num_female_councillors <- 39434
+flexdashboard::valueBox(prettyNum(num_female_councillors, big.mark = ","),
+         caption = "Female Municipal Councillors in Germany")
+```
+
+### Number of Municipal Councillors in Germany
+
+```{r four, cache=TRUE}
+num_councillors <- 165353
+flexdashboard::valueBox(prettyNum(num_councillors, big.mark = ","),
+         caption = "Municipal Councillors in Germany")
+```
+
+
+
+Column {data-width=150}
+-----------------------------------------------------------------------
+
+### Councils with at least 50% Women
+
+```{r five, cache=TRUE}
+councils_total <- alle_wahlen %>%
+  select(sitze_gesamt, sitze_frauen) %>%
+  filter(!is.na(sitze_gesamt)) %>%
+  filter(!is.na(sitze_frauen)) %>%
+  count()
+
+councils_plus_fifty <- alle_wahlen %>%
+  select(sitze_gesamt, sitze_frauen) %>%
+  filter(!is.na(sitze_gesamt)) %>%
+  filter(!is.na(sitze_frauen)) %>%
+  mutate(percent = sitze_frauen/sitze_gesamt) %>%
+  filter(percent >= 0.5) %>%
+  count()
+
+equal_councils <- councils_plus_fifty/councils_total*100
+equal_councils <- as.numeric(equal_councils)
+
+flexdashboard::gauge(value = equal_councils,
+      min = 0,
+      max = 100,
+      symbol = "%")
+```
+
+
+### Councils with no Women
+
+```{r six, cache=TRUE}
+councils_total <- alle_wahlen %>%
+  select(sitze_gesamt, sitze_frauen) %>%
+  filter(!is.na(sitze_gesamt)) %>%
+  filter(!is.na(sitze_frauen)) %>%
+  count()
+
+councils_zero <- alle_wahlen %>%
+  select(sitze_gesamt, sitze_frauen) %>%
+  filter(!is.na(sitze_gesamt)) %>%
+  filter(!is.na(sitze_frauen)) %>%
+  filter(sitze_frauen == 0) %>%
+  count()
+
+zero_councils <- councils_zero/councils_total*100
+zero_councils <- as.numeric(zero_councils)
+
+flexdashboard::gauge(value = zero_councils,
+      min = 0,
+      max = 100,
+      symbol = "%")
+```
+
+
+### Share of Female Councillors
+
+```{r seven, cache=TRUE}
+female_share <- 23.8
+
+flexdashboard::gauge(value = female_share,
+      min = 0,
+      max = 100,
+      symbol = "%")
+```
+
+
+Country Comparisons
+====================================================================
+
+Column {data-width=300 .sidebar}
+-----------------------------------------------------------------------
+```{r eight}
+country_choices <- eige_data %>% distinct(Country)
+
+selectInput(
+  "country_selector_councillors",
+  label = "Select Countries for Comparison",
+  choices = country_choices,
+  multiple = TRUE,
+  selected = "Germany"
+)
+
+filtered_eige_data <-
+  reactive(eige_data %>% dplyr::filter(Country %in% input$country_selector_councillors))
+```
+
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+### Female Councillors over Time
+
+```{r nine}
+renderPlotly({
+  line <- filtered_eige_data() %>%
+    ggplot(aes(
+      x = Year,
+      y = `Share of Female Councillors`,
+      group = Country,
+      color = Country
+    )) +
+    geom_line() +
+    theme_bw() + expand_limits(y = 0)
+  
+  ggplotly(line)
+})
+```
+
+> Source: European Institute for Gender Equality (2024).
+
+### Female Mayors over Time
+
+```{r ten}
+renderPlotly({
+  line <- filtered_eige_data() %>%
+    ggplot(aes(
+      x = Year,
+      y = `Share of Female Mayors`,
+      group = Country,
+      color = Country
+    )) +
+    geom_line() +
+    theme_bw() + expand_limits(y = 0)
+  
+  ggplotly(line)
+})
+```
+
+> Source: European Institute for Gender Equality (2024).
+
+
+Correlation Explorer
+=======================================================================
+
+Column {data-width=300 .sidebar}
+-----------------------------------------------------------------------
+```{r eleven, cache=TRUE}
+
+varSelectInput("corr_x",
+               label = "Select variable to display on x-axis",
+               data = alle_wahlen_corr[, c(1:11)])
+
+varSelectInput("corr_y",
+               label = "Select variable to display on y-axis",
+               data = alle_wahlen_corr[, c(2:11)])
+
+varSelectInput("corr_col",
+               label = "Select variable to color",
+               data = alle_wahlen_corr[, c(12:14)])
+
+selectInput(
+  "corr_trend",
+  label = "Select to show trends",
+  choices = c("None", "Linear Trend", "Linear Trend with Confidence Intervals")
+)
+
+```
+
+
+Column
+-----------------------------------------------------------------------
+
+### Plot Two Variables Against One Another
+
+```{r twelve}
+renderPlotly({
+  plot_minimal <- alle_wahlen_corr %>%
+    ggplot(aes(
+      x = !!input$corr_x,
+      y = !!input$corr_y,
+      col = !!input$corr_col
+    )) +
+    geom_point(alpha = .6) +
+    theme_bw()
+  
+  plot_lm  <- alle_wahlen_corr %>%
+    ggplot(aes(
+      x = !!input$corr_x,
+      y = !!input$corr_y,
+      col = !!input$corr_col
+    )) +
+    geom_point(alpha = .6) +
+    geom_smooth(method = lm ,
+                color = "red",
+                se = FALSE) +
+    theme_bw()
+  
+  plot_lm_ci  <- alle_wahlen_corr %>%
+    ggplot(aes(
+      x = !!input$corr_x,
+      y = !!input$corr_y,
+      col = !!input$corr_col
+    )) +
+    geom_point(alpha = .6) +
+    geom_smooth(method = lm ,
+                color = "red",
+                se = TRUE) +
+    theme_bw()
+  
+  if (input$corr_trend == "None") {
+    ggplotly(plot_minimal)
+  }
+  
+  else if (input$corr_trend == "Linear Trend") {
+    ggplotly(plot_lm)
+  }
+  
+  else {
+    ggplotly(plot_lm_ci)
+  }
+})
+```
+
+> Write some more info about this plot.
+
+
+Map
+=========================================================================
+
+Column {data-width=300 .sidebar}
+-----------------------------------------------------------------------
+```{r thirteen}
+selectInput(
+  "map_variable",
+  label = "Select variable to display",
+  choices = c("Female Councillors", "Female Candidates", "Female Mayors")
+)
+```
+
+Column
+------------------------------------------------------------------------
+
+### Map
+
+```{r fourteen}
+####Plot 1: Female Councillors
+
+#create a color palette with handmade bins
+mybins <- c(0, 10 , 20 , 30, 40, 50, 100)
+mypalette <-
+  colorBin(
+    palette = "YlOrBr",
+    domain = my_spdf$antl_frn_s,
+    na.color = "transparent",
+    bins = mybins
+  )
+
+#prepare the text for tooltips
+mytext <- paste(
+  "Municipality: ",
+  my_spdf$NAME_4,
+  "<br/>",
+  "Date of Election: ",
+  my_spdf$dtm_k,
+  "<br/>",
+  "Total Seats: ",
+  my_spdf$stz_g,
+  "<br/>",
+  "Female Councillors: ",
+  my_spdf$stz_f,
+  "<br/>",
+  "Share of Female Councillors: ",
+  round(my_spdf$antl_frn_s, 2),
+  "%",
+  sep = ""
+) %>%
+  lapply(htmltools::HTML)
+
+#final map
+map_female_councillors <- leaflet(my_spdf) %>%
+  addTiles() %>%
+  addPolygons(
+    fillColor = ~ mypalette(antl_frn_s),
+    stroke = TRUE,
+    fillOpacity = 0.9,
+    color = "white",
+    weight = 0.3,
+    label = mytext,
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "13px",
+      direction = "auto"
+    )
+  ) %>%
+  addLegend(
+    pal = mypalette,
+    values = ~ antl_frn_s,
+    opacity = 0.9,
+    title = "Share of female councillors (%)",
+    position = "bottomleft"
+  ) %>%
+  addProviderTiles("Esri.WorldGrayCanvas") %>%
+  leaflet.extras::addSearchOSM(options = searchOptions(collapsed = TRUE))
+
+####Plot 2: Female Mayors
+
+#create a color palette with handmade bins
+mybins <- c(0, 1)
+mypalette <-
+  colorFactor(palette = "YlOrBr",
+              domain = my_spdf$brgrm,
+              na.color = "transparent")
+
+#prepare the text for tooltips
+mytext <- paste(
+  "Municipality: ",
+  my_spdf$NAME_4,
+  "<br/>",
+  "Female Mayor: ",
+  my_spdf$brgrm,
+  "<br/>",
+  sep = ""
+) %>%
+  lapply(htmltools::HTML)
+
+#final map
+map_female_mayors <- leaflet(my_spdf) %>%
+  addTiles() %>%
+  addPolygons(
+    fillColor = ~ mypalette(brgrm),
+    stroke = TRUE,
+    fillOpacity = 0.9,
+    color = "white",
+    weight = 0.3,
+    label = mytext,
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "13px",
+      direction = "auto"
+    )
+  ) %>%
+  addLegend(
+    pal = mypalette,
+    values = ~ brgrm,
+    opacity = 0.9,
+    title = "Female Mayor",
+    position = "bottomleft"
+  ) %>%
+  addProviderTiles("Esri.WorldGrayCanvas") %>%
+  leaflet.extras::addSearchOSM(options = searchOptions(collapsed = TRUE))
+
+
+####Plot 3: Female Candidates
+
+#create a color palette with handmade bins
+mybins <- c(0, 10 , 20 , 30, 40, 50, 100)
+mypalette <-
+  colorBin(
+    palette = "YlOrBr",
+    domain = my_spdf$antl_frn_b,
+    na.color = "transparent",
+    bins = mybins
+  )
+
+#prepare the text for tooltips
+mytext <- paste(
+  "Municipality: ",
+  my_spdf$NAME_4,
+  "<br/>",
+  "Date of Election: ",
+  my_spdf$dtm_k,
+  "<br/>",
+  "Total Candidates: ",
+  my_spdf$bwrbr_g,
+  "<br/>",
+  "Female Candidates: ",
+  my_spdf$bwrbr_f,
+  "<br/>",
+  "Share of Female Candidates: ",
+  round(my_spdf$antl_frn_b, 2),
+  "%",
+  sep = ""
+) %>%
+  lapply(htmltools::HTML)
+
+#final map
+map_female_candidates <- leaflet(my_spdf) %>%
+  addTiles() %>%
+  addPolygons(
+    fillColor = ~ mypalette(antl_frn_b),
+    stroke = TRUE,
+    fillOpacity = 0.9,
+    color = "white",
+    weight = 0.3,
+    label = mytext,
+    labelOptions = labelOptions(
+      style = list("font-weight" = "normal", padding = "3px 8px"),
+      textsize = "13px",
+      direction = "auto"
+    )
+  ) %>%
+  addLegend(
+    pal = mypalette,
+    values = ~ antl_frn_b,
+    opacity = 0.9,
+    title = "Share of female candidates (%)",
+    position = "bottomleft"
+  ) %>%
+  addProviderTiles("Esri.WorldGrayCanvas")
+
+
+
+#######Plot them
+renderLeaflet({
+  if (input$map_variable == "Female Councillors") {
+    map_female_councillors
+  }
+  
+  else if (input$map_variable == "Female Candidates") {
+    map_female_candidates
+  }
+  
+  else if (input$map_variable == "Female Mayors") {
+    map_female_mayors
+  }
+  
+  else {
+    map_female_councillors
+  }
+})
+
+```
+
+
+Raw Data
+=======================================================================
+
+Column {data-width=300 .sidebar}
+-----------------------------------------------------------------------
+```{r fifteen}
+checkboxGroupInput(
+  "data_selector",
+  label = "Select variables for data table",
+  choices = names(alle_wahlen_dt),
+  selected = names(alle_wahlen_dt)
+)
+```
+
+Column
+-----------------------------------------------------------------------
+
+### Data Table
+
+```{r sixteen}
+renderDataTable({
+  datatable(
+    alle_wahlen_dt %>% dplyr::select(input$data_selector),
+    rownames = FALSE,
+    extensions = "Buttons",
+    filter = 'top',
+    options = list(
+      dom = "Bfrtip",
+      buttons = c("copy", "csv", "excel", "pdf", "print")
+    )
+  )
+})
+```
